@@ -167,6 +167,7 @@ func initAdapter(id *string) error {
 	if adapter != nil {
 		log.Debug("Reusing existing BLE device")
 	} else {
+		log.SetLevel(log.LevelDebug)
 		log.Debug("Creating new BLE adapter")
 		idStr := ""
 		if id != nil {
@@ -202,8 +203,10 @@ func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error) {
 }
 
 func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, error) {
+	log.Debug("Scan for %s", localName)
 	scanIsStopped := false
 	stopScan := func() {
+		log.Debug("Stop scanning")
 		scanIsStopped = true
 		if err := adapter.StopScan(); err != nil {
 			log.Warning("ble: failed to stop scan: %s", err)
@@ -221,6 +224,7 @@ func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, erro
 	// This can be fixed once the bluetooth library supports context handling.
 	// See: https://github.com/tinygo-org/bluetooth/issues/339
 	if ctx.Err() != nil {
+		log.Debug("Abort scan")
 		return nil, ctx.Err()
 	}
 
@@ -229,24 +233,29 @@ func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, erro
 	scanFinished := make(chan struct{})
 	defer func() {
 		<-scanFinished
+		log.Debug("Exiting scanVehicleBeacon")
 	}()
 
 	// Scan is blocking, so run it in a goroutine
 	go func() {
 		defer close(scanFinished)
 		if scanIsStopped {
+			log.Debug("Scan already stopped")
 			return
 		}
-		log.Debug("Scanning for %s...", localName)
+		log.Debug("Start scanning")
 		if err := adapter.Scan(func(_ *bluetooth.Adapter, result bluetooth.ScanResult) {
+			log.Debug("Scan result: %s", result.Address.String())
 			// If we have stopped the scan and we still get results it means
 			// that the case described in the comment above has happened.
 			if scanIsStopped {
+				log.Debug("Scan result after stop: %s", result.Address.String())
 				stopScan()
 				return
 			}
 
 			if result.LocalName() == localName {
+				log.Debug("Found %s at %s", localName, result.Address.String())
 				stopScan()
 				foundCh <- &ScanResult{
 					Address:   result.Address,
@@ -257,14 +266,18 @@ func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, erro
 		}); err != nil {
 			errorCh <- err
 		}
+		log.Debug("Scan goroutine finished")
 	}()
 
 	select {
 	case result := <-foundCh:
+		log.Debug("Found %s at %s", result.LocalName, result.Address.String())
 		return result, nil
 	case err := <-errorCh:
+		log.Debug("Scan error: %s", err)
 		return nil, err
 	case <-ctx.Done():
+		log.Debug("Scan cancelled")
 		stopScan()
 		return nil, ctx.Err()
 	}
