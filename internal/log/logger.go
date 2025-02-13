@@ -44,7 +44,7 @@ func logLevel() Level {
 
 func log(level Level, format string, a ...interface{}) {
 	if level <= logLevel() {
-		msg := fmt.Sprintf("%s %s ", time.Now().Format(time.RFC3339), labels[level])
+		msg := fmt.Sprintf("%s %s ", time.Now().Format(time.StampMilli), labels[level])
 		msg += fmt.Sprintf(format, a...)
 		fmt.Fprintln(os.Stderr, msg)
 	}
