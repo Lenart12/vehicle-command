@@ -236,6 +236,7 @@ func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, erro
 	// waiting for StopScan() to finish is not enough.
 	scanFinished := make(chan struct{})
 	defer func() {
+		log.Debug("[%d] Waiting for scan to finish", myIndex)
 		<-scanFinished
 		log.Debug("[%d] Exiting scanVehicleBeacon", myIndex)
 	}()
@@ -266,8 +267,10 @@ func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, erro
 					LocalName: result.LocalName(),
 					RSSI:      result.RSSI,
 				}
+				log.Debug("[%d] Set foundCh", myIndex)
 			}
 		}); err != nil && !scanIsStopped {
+			log.Debug("[%d] Scan returned error: %s", myIndex, err)
 			errorCh <- err
 		}
 		log.Debug("[%d] Scan goroutine finished", myIndex)
