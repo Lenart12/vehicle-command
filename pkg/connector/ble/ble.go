@@ -18,6 +18,7 @@ import (
 
 const maxBLEMessageSize = 1024
 
+var ErrAdapterInvalidID = protocol.NewError("the bluetooth adapter ID is invalid", false, false)
 var ErrMaxConnectionsExceeded = protocol.NewError("the vehicle is already connected to the maximum number of BLE devices", false, false)
 
 var (
@@ -168,11 +169,10 @@ func initAdapter(id *string) error {
 		log.Debug("Reusing existing BLE device")
 	} else {
 		log.Debug("Creating new BLE adapter")
-		idStr := ""
-		if id != nil {
-			idStr = *id
+		adapter, err = newAdapter(id)
+		if err != nil {
+			return fmt.Errorf("ble: failed to create adapter: %s", err)
 		}
-		adapter = newAdapter(idStr)
 		if err = adapter.Enable(); err != nil {
 			return fmt.Errorf("ble: failed to enable device: %s", err)
 		}
@@ -181,9 +181,12 @@ func initAdapter(id *string) error {
 }
 
 type ScanResult struct {
-	Address   bluetooth.Address
-	LocalName string
-	RSSI      int16
+	Address     string
+	LocalName   string
+	RSSI        int16
+	Connectable bool
+
+	address bluetooth.Address // Internal address representation for connecting
 }
 
 func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error) {
@@ -249,9 +252,11 @@ func scanVehicleBeacon(ctx context.Context, localName string) (*ScanResult, erro
 			if result.LocalName() == localName {
 				stopScan()
 				foundCh <- &ScanResult{
-					Address:   result.Address,
-					LocalName: result.LocalName(),
-					RSSI:      result.RSSI,
+					Address:     result.Address.String(),
+					LocalName:   result.LocalName(),
+					RSSI:        result.RSSI,
+					Connectable: true, // FIXME: This is assumed to be true, we can't check it with the current API.
+					address:     result.Address,
 				}
 			}
 		}); err != nil && !scanIsStopped {
@@ -328,7 +333,11 @@ func tryToConnect(ctx context.Context, vin string, target *ScanResult) (*Connect
 		return nil, false, fmt.Errorf("ble: beacon with unexpected local name: '%s'", target.LocalName)
 	}
 
-	log.Debug("Connecting to %s (%s)...", target.Address.String(), localName)
+	if target.Address != target.address.String() {
+		return nil, false, fmt.Errorf("ble: target address mismatch: '%s' != '%s'", target.Address, target.address.String())
+	}
+
+	log.Debug("Connecting to %s (%s)...", target.Address, localName)
 
 	// FIXME: This is a workaround for the fact that bluetooth library doesn't
 	// support context handling. While not a big issue, it will be good to
@@ -344,7 +353,7 @@ func tryToConnect(ctx context.Context, vin string, target *ScanResult) (*Connect
 		if deadline, ok := ctx.Deadline(); ok {
 			params.ConnectionTimeout = bluetooth.NewDuration(time.Until(deadline))
 		}
-		device, err := adapter.Connect(target.Address, params)
+		device, err := adapter.Connect(target.address, params)
 		if err != nil {
 			errorCh <- err
 		} else if ctx.Err() == nil {
@@ -358,7 +367,7 @@ func tryToConnect(ctx context.Context, vin string, target *ScanResult) (*Connect
 	var device bluetooth.Device
 	select {
 	case device = <-deviceCh:
-		log.Debug("Connected to %s", target.Address.String())
+		log.Debug("Connected to %s", target.Address)
 	case err := <-errorCh:
 		return nil, true, fmt.Errorf("ble: failed to connect to device: %s", err)
 	case <-ctx.Done():

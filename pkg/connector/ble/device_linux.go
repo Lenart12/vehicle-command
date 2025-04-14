@@ -1,6 +1,7 @@
 package ble
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/teslamotors/vehicle-command/internal/log"
@@ -25,12 +26,20 @@ func AdapterErrorHelpMessage(err error) string {
 		"If running in a container, make sure the container has access to the host's D-Bus socket. (e.g. -v /var/run/dbus:/var/run/dbus)"
 }
 
-func newAdapter(id string) *bluetooth.Adapter {
-	if id != "" {
-		return bluetooth.NewAdapter(id)
+func newAdapter(id *string) (*bluetooth.Adapter, error) {
+	if id != nil && *id != "" {
+		if !strings.HasPrefix(*id, "hci") {
+			return nil, ErrAdapterInvalidID
+		}
+		hciStr := strings.TrimPrefix(*id, "hci")
+		hciID, err := strconv.Atoi(hciStr)
+		if err != nil || hciID < 0 || hciID > 15 {
+			return nil, ErrAdapterInvalidID
+		}
+		return bluetooth.NewAdapter(*id), nil
 	}
 
-	return bluetooth.DefaultAdapter
+	return bluetooth.DefaultAdapter, nil
 }
 
 var (

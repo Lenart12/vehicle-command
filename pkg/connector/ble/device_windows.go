@@ -14,13 +14,13 @@ func AdapterErrorHelpMessage(err error) string {
 	return err.Error()
 }
 
-func newAdapter(id string) *bluetooth.Adapter {
-	if id != "" {
-		// TODO: Add support for Windows
-		log.Warning("BLE adapter ID is not supported on Windows")
+func newAdapter(id *string) (*bluetooth.Adapter, error) {
+	if id != nil && *id != "" {
+		log.Warning("Windows does not support specifying a Bluetooth adapter ID")
+		return nil, ErrAdapterInvalidID
 	}
 
-	return bluetooth.DefaultAdapter
+	return bluetooth.DefaultAdapter, nil
 }
 
 var (

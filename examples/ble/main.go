@@ -110,7 +110,7 @@ func main() {
 		logger.Println(err)
 		return
 	}
-	logger.Printf("Found vehicle: %s (%s) %ddBm", scan.LocalName, scan.Address.String(), scan.RSSI)
+	logger.Printf("Found vehicle: %s (%s) %ddBm", scan.LocalName, scan.Address, scan.RSSI)
 
 	conn, err := ble.NewConnectionFromScanResult(ctx, vin, scan)
 	if err != nil {

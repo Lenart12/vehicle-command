@@ -1,11 +1,11 @@
 module github.com/teslamotors/vehicle-command
 
-go 1.23
+go 1.23.0
 
 require (
 	github.com/99designs/keyring v1.2.2
 	github.com/cronokirby/saferith v0.33.0
-	github.com/golang-jwt/jwt/v5 v5.2.1
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	golang.org/x/term v0.11.0
 	google.golang.org/protobuf v1.34.2
